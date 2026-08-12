@@ -16,6 +16,9 @@ def pointDetector(
         numVerticalPoints,
         numGeneralPoints,
         randomSeed = 1):
+    # Call SAM to get a segmentation of the input.
+    # Alternatively, get DINOv2 to get a feature map, and use it with k-means to get the salient object mask.
+
     return None, None
 
 
