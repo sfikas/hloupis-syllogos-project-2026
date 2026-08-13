@@ -130,7 +130,28 @@ def pointDetector(
     ])
     if np.mean(border_pixels) > 0.5:
         foreground_mask = ~foreground_mask
-    cv2.imwrite(f'aaaa_{base_name}.png', foreground_mask.astype('uint8') * 255)
+    #cv2.imwrite(f'aaaa_{base_name}.png', foreground_mask.astype('uint8') * 255)
+
+    ############# Count number of disconnected objects ###############
+    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
+        foreground_mask.astype(np.uint8), connectivity=8
+    )
+    ## Remove the really small components -- those that are less than 10% of the biggest CC area
+    remaining_labels = []
+    if num_labels > 1:
+        max_area = np.max(stats[1:, cv2.CC_STAT_AREA])
+        for i in range(1, num_labels):
+            if stats[i, cv2.CC_STAT_AREA] < 0.1 * max_area:
+                foreground_mask[labels == i] = False
+            else:
+                remaining_labels.append(i)
+
+    ## Now 'remaining_labels' will contain labels, one for each detected object.
+    #cv2.imwrite(f'bbbb_{base_name}.png', foreground_mask.astype('uint8') * 255)
+    num_spotted_objects = len(remaining_labels)
+    print(f'Εντόπισα {num_spotted_objects} αντικείμενα.')
+    if debug_mode:
+        print(f'(Ετικέτες {remaining_labels})')
 
     return None, None
 
