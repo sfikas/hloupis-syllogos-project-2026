@@ -152,6 +152,18 @@ def pointDetector(
     print(f'Εντόπισα {num_spotted_objects} αντικείμενα.')
     if debug_mode:
         print(f'(Ετικέτες {remaining_labels})')
+    
+    ## Overlay original image with transparent color for each remaining label
+    overlay = image.copy()
+    np.random.seed(randomSeed)
+    alpha = 0.4
+    for label in remaining_labels:
+        color = np.random.randint(0, 256, size=3, dtype=np.uint8)
+        mask = labels == label
+        overlay[mask] = (image[mask] * (1 - alpha) + color * alpha).astype(np.uint8)
+    if debug_mode:
+        cv2.imwrite(f'{base_name}_overlay.png', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+
 
     return None, None
 
