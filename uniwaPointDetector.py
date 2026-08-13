@@ -50,6 +50,8 @@ def pointDetector(
         numGeneralPoints,
         randomSeed = 1):
 
+    ### Κάποιες υπερπαράμετροι
+    border_pixels_threshold = 15
     
     try:
         image = cv2.cvtColor(cv2.imread(inputImage), cv2.COLOR_BGR2RGB)
@@ -119,6 +121,17 @@ def pointDetector(
     foreground_mask = cleaned > 0
     #cv2.imwrite('aaaa.png', foreground_mask.astype('uint8') * 255)
 
+    ############# Decide which is the background object ##############
+    border_pixels = np.concatenate([
+        foreground_mask[0:border_pixels_threshold, :].flatten(),
+        foreground_mask[-border_pixels_threshold:-1, :].flatten(),
+        foreground_mask[:, 0:border_pixels_threshold].flatten(),
+        foreground_mask[:, -border_pixels_threshold-1].flatten()
+    ])
+    if np.mean(border_pixels) > 0.5:
+        foreground_mask = ~foreground_mask
+    cv2.imwrite(f'aaaa_{base_name}.png', foreground_mask.astype('uint8') * 255)
+
     return None, None
 
 
@@ -135,10 +148,20 @@ if __name__=='__main__':
     if debug_mode:
         print('**** DEBUG MODE *****')
 
-    verticalPoints, randomPoints = pointDetector(
-        inputImage=args.input_image,
-        numVerticalPoints=args.numVerticalPoints,
-        numGeneralPoints=args.numGeneralPoints)
+    if os.path.isdir(args.input_image):
+        image_files = [
+            os.path.join(args.input_image, f)
+            for f in sorted(os.listdir(args.input_image))
+            if f.endswith('.jpg') or f.endswith('.JPG')
+        ]
+    else:
+        image_files = [args.input_image]
+
+    for img_path in image_files:
+        verticalPoints, randomPoints = pointDetector(
+            inputImage=img_path,
+            numVerticalPoints=args.numVerticalPoints,
+            numGeneralPoints=args.numGeneralPoints)
 
     print(f'')
 
