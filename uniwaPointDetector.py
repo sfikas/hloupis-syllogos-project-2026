@@ -38,6 +38,7 @@ import argparse
 import os
 import urllib.request
 import cv2
+import numpy as np
 from tqdm import tqdm
 from shutil import rmtree
 from mobile_sam import sam_model_registry, SamAutomaticMaskGenerator
@@ -98,11 +99,25 @@ def pointDetector(
             cv2.imwrite(binarization_filename, foreground_mask.astype('uint8') * 255)
             print(f'Saved binarization as {binarization_filename}.')
         else:
-            foreground_mask, background_mask = None, None
+            foreground_mask = None
+            print('Πρόβλημα με τη δημιουργία του αρχείου δυαδικοποίησης.')
+            return None, None
     #### binarization already exists.
     else:
-        print('Binarization already exists, using existing binarization.')
-        foreground_mask = cv2.imread(binarization_filename, cv2.IMREAD_GRAYSCALE) > 0
+        print('Το αρχείο δυαδικοποίησης υπάρχει ήδη, το χρησιμοποιώ..')
+        try:
+            foreground_mask = cv2.imread(binarization_filename, cv2.IMREAD_GRAYSCALE) > 0
+        except:
+            print('Πρόλημα με το άνοιγμα του αρχείου δυαδικοποίησης.')
+            return None, None
+
+    ############# Clean up the foreground mask with morphomat ##############
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+    mask_uint8 = foreground_mask.astype(np.uint8) * 255
+    opened = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel)
+    cleaned = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel)
+    foreground_mask = cleaned > 0
+    #cv2.imwrite('aaaa.png', foreground_mask.astype('uint8') * 255)
 
     return None, None
 
