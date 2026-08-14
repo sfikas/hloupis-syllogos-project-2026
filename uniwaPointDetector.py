@@ -50,13 +50,20 @@ def pointDetector(
         numGeneralPoints,
         randomSeed = 1):
 
+    assert(numVerticalPoints == 1 or numVerticalPoints == 2)
+    assert(numGeneralPoints > 0 and numGeneralPoints <=4)
+    assert(type(inputImage) == str)
     ### Κάποιες υπερπαράμετροι
     border_pixels_threshold = 15
+
     
     try:
         image = cv2.cvtColor(cv2.imread(inputImage), cv2.COLOR_BGR2RGB)
         h, w = image.shape[:2]
+        original_h, original_w = h, w
+        scale_factor = 1.0
         if w != 1024:
+            scale_factor = 1024 / w
             new_h = int(round(h * 1024 / w))
             image = cv2.resize(image, (1024, new_h), interpolation=cv2.INTER_AREA)
     except Exception as e:
@@ -153,19 +160,73 @@ def pointDetector(
     if debug_mode:
         print(f'(Ετικέτες {remaining_labels})')
     
-    ## Overlay original image with transparent color for each remaining label
-    overlay = image.copy()
-    np.random.seed(randomSeed)
-    alpha = 0.4
+    ## Get "mesokathetos" as the vertical line that roughly passes through the middle of the object
+    verticalPoints_per_object = []
+    generalPoints_per_object = []
     for label in remaining_labels:
-        color = np.random.randint(0, 256, size=3, dtype=np.uint8)
-        mask = labels == label
-        overlay[mask] = (image[mask] * (1 - alpha) + color * alpha).astype(np.uint8)
+        # Υποθέτω πάντα ότι μπορούν να υπάρχουν άνω του ενός αντικείμενα στη σκηνή
+        ys, xs = np.where(labels == label)
+        median_x = int(np.median(xs))
+        vertical_ys = ys[xs == median_x]
+        min_y, max_y = np.min(vertical_ys), np.max(vertical_ys)
+        current_VerticalPoints = np.array([
+            median_x,
+            min_y
+        ])
+        # Αν έχουν ζητηθεί δύο σημεία της μεσοκαθέτου, επέστρεψε και το κατώτερο. 
+        # Επιτρέπω μόνο δύο πιθανά σημεία
+        if numVerticalPoints > 1:
+            current_VerticalPoints = np.column_stack((current_VerticalPoints, np.array([
+                median_x,
+                max_y
+            ])))
+        verticalPoints_per_object.append(current_VerticalPoints)
+        ## Και τώρα τα "γενικά" σημεία
+        median_y = int(np.median(ys))
+        horizontal_xs = xs[ys == median_y]
+        lenxs = len(horizontal_xs)
+        lenys = len(vertical_ys)
+        current_GeneralPoints = np.array([
+            [ horizontal_xs[int(.25 * lenxs)], horizontal_xs[int(.75 * lenxs)] ],
+            [ median_y, median_y]
+        ])
+        current_GeneralPoints = np.column_stack((current_GeneralPoints, np.array([
+                [ median_x, median_x],
+                [ vertical_ys[int(.25 * lenys)], vertical_ys[int(.75 * lenys)] ]
+            ])))
+        # Κράτησε όσα μόνο ζητήθηκαν
+        current_GeneralPoints = current_GeneralPoints[:, 0:numGeneralPoints]
+        generalPoints_per_object.append(current_GeneralPoints)
+
+    ## Όλη η δουλειά έχει γίνει -- το παρακάτω υπάρχει για οπτικοποίηση του αποτελέσματος.
     if debug_mode:
+        overlay = image.copy()
+        np.random.seed(randomSeed)
+        alpha = 0.4
+        for label in remaining_labels:
+            color = np.random.randint(0, 256, size=3, dtype=np.uint8)
+            mask = labels == label
+            overlay[mask] = (image[mask] * (1 - alpha) + color * alpha).astype(np.uint8)
+        for vp in verticalPoints_per_object:
+            pts = np.atleast_2d(vp)
+            if pts.shape[0] != 2:
+                pts = pts.T
+            for i in range(pts.shape[1]):
+                cv2.circle(overlay, (int(pts[0, i]), int(pts[1, i])), 5, (255, 0, 0), -1)
+        for gp in generalPoints_per_object:
+            pts = np.atleast_2d(gp)
+            if pts.shape[0] != 2:
+                pts = pts.T
+            for i in range(pts.shape[1]):
+                cv2.circle(overlay, (int(pts[0, i]), int(pts[1, i])), 5, (0, 0, 255), -1)
         cv2.imwrite(f'{base_name}_overlay.png', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
 
+    # Rescale points back to original coordinates
+    if scale_factor != 1.0:
+        verticalPoints_per_object = [np.round(pts / scale_factor).astype(int) for pts in verticalPoints_per_object]
+        generalPoints_per_object = [np.round(pts / scale_factor).astype(int) for pts in generalPoints_per_object]
 
-    return None, None
+    return verticalPoints_per_object, generalPoints_per_object
 
 
 if __name__=='__main__':
@@ -176,8 +237,11 @@ if __name__=='__main__':
     parser.add_argument('--input_image', '-i', required=True, help='Όνομα αρχείου εικόνας.')
     parser.add_argument('--numVerticalPoints', type=int, default=1, help='Αριθμός σημείων επί του αντικειμένου ενδιαφέροντος, τα οποία βρίσκονται επί της "μεσοκαθέτου". Το πρώτο σημείο βρίσκεται πιο κοντά στο άνω όριο της εικόνας, και το δεύτερο (εάν ζητείται) βρίσκεται πιο κοντά στο κάτω όριο της εικόνας.')
     parser.add_argument('--numGeneralPoints', type=int, default=4, help='Αριθμός σημείων επί του αντικειμένου ενδιαφέροντος, εκτός αυτών της "μεσοκαθέτου".')
+    parser.add_argument('--debug', action='store_true', default=False, help='Αποθήκευση εικόνας με επισημείωση του αποτελέσματος.')
+
     args = parser.parse_args()
 
+    debug_mode = args.debug
     if debug_mode:
         print('**** DEBUG MODE *****')
 
@@ -191,12 +255,15 @@ if __name__=='__main__':
         image_files = [args.input_image]
 
     for img_path in image_files:
-        verticalPoints, randomPoints = pointDetector(
+        verticalPoints, generalPoints = pointDetector(
             inputImage=img_path,
             numVerticalPoints=args.numVerticalPoints,
             numGeneralPoints=args.numGeneralPoints)
 
-    print(f'')
+        print('Οι συντεταγμένες των προτεινόμενων σημείων είναι οι παρακάτω:')
+        for i, (vp, gp) in enumerate(zip(verticalPoints, generalPoints)):
+            print(f'Αντικείμενο {i+1}: μεσαία σημεία = {np.atleast_2d(vp).tolist()}, γενικά σημεία = {np.atleast_2d(gp).tolist()}')
+        
 
 
     if not debug_mode and os.path.exists(binarizations_folder):
