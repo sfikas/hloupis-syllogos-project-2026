@@ -1,5 +1,6 @@
 venv/
 *.pt
+!z80.pt
 binarization.png
 binarizations/
 aaaa.png
