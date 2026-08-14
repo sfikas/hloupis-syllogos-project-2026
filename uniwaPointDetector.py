@@ -78,17 +78,7 @@ def pointDetector(
         os.makedirs(binarizations_folder)
     ############ Create binarization ###############
     if not os.path.exists(binarization_filename):
-        checkpoint_path = "mobile_sam.pt"
-        if not os.path.exists(checkpoint_path):
-            url = f"https://github.com/ChaoningZhang/MobileSAM/raw/master/weights/{checkpoint_path}"
-            print(f"Downloading {checkpoint_path}...")
-            with tqdm(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=checkpoint_path) as t:
-                def reporthook(blocknum, blocksize, totalsize):
-                    if totalsize is not None:
-                        t.total = totalsize
-                    t.update(blocknum * blocksize - t.n)
-                urllib.request.urlretrieve(url, checkpoint_path, reporthook=reporthook)
-
+        checkpoint_path = "z80.pt"
         sam = sam_model_registry["vit_t"](checkpoint=checkpoint_path)
         sam.to(device="cpu")
         sam.eval()
